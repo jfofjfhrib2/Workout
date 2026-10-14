@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mein Bauch-Trainingsplan</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #121212;
+      color: #fff;
+      margin: 0;
+      padding: 20px;
+      text-align: center;
+    }
+
+    .container {
+      max-width: 500px;
+      margin: auto;
+    }
+
+    h1 {
+      color: #00e5ff;
+    }
+
+    .card {
+      background: #1e1e1e;
+      border-radius: 15px;
+      padding: 25px;
+      margin-top: 20px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.4);
+    }
+
+    .hidden {
+      display: none;
+    }
+
+    input {
+      width: 100%;
+      padding: 12px;
+      margin: 8px 0;
+      border-radius: 10px;
+      border: none;
+      font-size: 16px;
+      box-sizing: border-box;
+    }
+
+    button {
+      background: #00e5ff;
+      border: none;
+      color: #000;
+      font-weight: bold;
+      font-size: 17px;
+      padding: 12px 20px;
+      border-radius: 10px;
+      cursor: pointer;
+      margin: 5px;
+    }
+
+    button.green {
+      background: #00c853;
+      color: #fff;
+    }
+
+    button.red {
+      background: #ff5252;
+      color: #fff;
+    }
+
+    .number {
+      color: #aaa;
+      font-size: 15px;
+    }
+
+    .exercise-name {
+      font-size: 28px;
+      font-weight: bold;
+      margin: 10px 0;
+    }
+
+    .exercise-goal {
+      font-size: 20px;
+      color: #00e5ff;
+      margin-bottom: 20px;
+    }
+
+    .timer {
+      font-size: 45px;
+      font-weight: bold;
+      margin: 15px 0;
+    }
+
+    .level {
+      background: #2a2a2a;
+      padding: 10px;
+      border-radius: 10px;
+      margin-bottom: 15px;
+    }
+
+    .countdown {
+      background: #003c46;
+      padding: 15px;
+      border-radius: 10px;
+      margin: 15px 0;
+      font-size: 20px;
+      font-weight: bold;
+    }
+
+    .tip {
+      color: #bbb;
+      font-size: 14px;
+      margin-top: 15px;
+    }
+
+    .stats {
+      text-align: left;
+      font-size: 15px;
+      color: #ddd;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>💪 Bauch-Training</h1>
+
+    <!-- Anmeldung -->
+    <div id="setupScreen" class="card">
+      <h2>Deine Daten</h2>
+      <input type="number" id="ageInput" placeholder="Dein Alter" min="10" max="19">
+      <input type="number" id="weightInput" placeholder="Dein Gewicht in kg" min="30" max="120">
+      <button onclick="saveProfile()">Speichern und starten</button>
+      <p class="tip">Deine Daten werden nur in deinem Browser gespeichert.</p>
+    </div>
+
+    <!-- Hauptmenü -->
+    <div id="homeScreen" class="card hidden">
+      <div class="level" id="levelInfo"></div>
+      <div class="stats" id="statsInfo"></div>
+
+      <div class="countdown" id="countdownBox"></div>
+
+      <button id="startButton" onclick="startWorkout()">Training starten</button>
+      <button class="red" onclick="deleteData()">Daten löschen</button>
+    </div>
+
+    <!-- Übung -->
+    <div id="exerciseScreen" class="card hidden">
+      <p class="number" id="exerciseNumber"></p>
+      <div class="exercise-name" id="exerciseName"></div>
+      <div class="exercise-goal" id="exerciseGoal"></div>
+
+      <div id="timerBox">
+        <div class="timer" id="timer">30</div>
+        <button id="timerButton" onclick="startTimer()">Timer starten</button>
+      </div>
+
+      <div id="repsBox" class="hidden">
+        <p>Wenn du fertig bist:</p>
+        <button onclick="nextExercise()">Nächste Übung</button>
+      </div>
+
+      <p class="tip" id="exerciseTip"></p>
+    </div>
+
+    <!-- Bewertung -->
+    <div id="feedbackScreen" class="card hidden">
+      <h2>Wie war das Training?</h2>
+      <button class="green" onclick="saveFeedback(1)">Zu leicht</button>
+      <button onclick="saveFeedback(0)">Genau richtig</button>
+      <button class="red" onclick="saveFeedback(-1)">Zu schwer</button>
+    </div>
+
+    <!-- Fertig -->
+    <div id="finishScreen" class="card hidden">
+      <h2>🎉 Training gespeichert!</h2>
+      <p id="levelChangeText"></p>
+      <p id="nextWorkoutText"></p>
+      <button onclick="showHome()">Zurück zum Menü</button>
+    </div>
+  </div>
+
+  <script>
+    let wakeLock = null;
+
+    async function requestWakeLock() {
+      try {
+        wakeLock = await navigator.wakeLock.request("screen");
+      } catch (error) {
+        console.log("Wake Lock nicht möglich:", error);
+      }
+    }
+
+    document.addEventListener("visibilitychange", async () => {
+      if (document.visibilityState === "visible") {
+        await requestWakeLock();
+      }
+    });
+
+    requestWakeLock();
+
+    let userData = JSON.parse(localStorage.getItem("bauchTraining")) || null;
+
+    const exercises = [
+      { name: "Plank", type: "timer", baseTime: 20, tip: "Gerader Rücken, Bauch anspannen." },
+      { name: "Crunches", type: "reps", baseReps: 10, tip: "Nur die Schultern anheben." },
+      { name: "Beinheben liegend", type: "reps", baseReps: 8, tip: "Langsam heben und absenken." },
+      { name: "Russian Twists", type: "reps", baseReps: 12, tip: "Ohne Gewicht machen." }
+    ];
+
+    let currentExercise = 0;
+    let timerInterval = null;
+    let countdownInterval = null;
+
+    function saveProfile() {
+      const age = parseInt(document.getElementById("ageInput").value);
+      const weight = parseInt(document.getElementById("weightInput").value);
+
+      if (!age || !weight) {
+        alert("Bitte Alter und Gewicht eingeben.");
+        return;
+      }
+
+      userData = {
+        age: age,
+        weight: weight,
+        level: 1,
+        workouts: 0,
+        history: [],
+        nextWorkout: null
+      };
+
+      saveData();
+      askNotificationPermission();
+      showHome();
+    }
+
+    function saveData() {
+      localStorage.setItem("bauchTraining", JSON.stringify(userData));
+    }
+
+    function deleteData() {
+      if (confirm("Wirklich alle Daten löschen?")) {
+        localStorage.removeItem("bauchTraining");
+        location.reload();
+      }
+    }
+
+    function askNotificationPermission() {
+      if ("Notification" in window && Notification.permission === "default") {
+        Notification.requestPermission();
+      }
+    }
+
+    function sendNotification(title, text) {
+      if ("Notification" in window && Notification.permission === "granted") {
+        new Notification(title, {
+          body: text
+        });
+      }
+    }
+
+    function showHome() {
+      hideAll();
+      document.getElementById("homeScreen").classList.remove("hidden");
+
+      const levelNames = ["Anfänger", "Leicht Fortgeschritten", "Fortgeschritten", "Stark", "Sehr stark"];
+      const levelName = levelNames[userData.level - 1] || "Anfänger";
+
+      document.getElementById("levelInfo").innerHTML =
+        "<b>Leistungsniveau:</b> " + userData.level + " – " + levelName;
+
+      document.getElementById("statsInfo").innerHTML =
+        "<b>Alter:</b> " + userData.age + " Jahre<br>" +
+        "<b>Gewicht:</b> " + userData.weight + " kg<br>" +
+        "<b>Trainings gemacht:</b> " + userData.workouts;
+
+      updateCountdown();
+    }
+
+    function updateCountdown() {
+      clearInterval(countdownInterval);
+
+      const box = document.getElementById("countdownBox");
+      const startButton = document.getElementById("startButton");
+
+      if (!userData.nextWorkout) {
+        box.innerHTML = "Du kannst jetzt trainieren 💪";
+        startButton.disabled = false;
+        return;
+      }
+
+      const nextTime = new Date(userData.nextWorkout).getTime();
+
+      function update() {
+        const timeLeft = nextTime - Date.now();
+
+        if (timeLeft <= 0) {
+          box.innerHTML = "⏰ Zeit für dein Training!";
+          startButton.disabled = false;
+          sendNotification(
+            "Bauch-Training",
+            "Es ist Zeit für dein nächstes Training!"
+          );
+          clearInterval(countdownInterval);
+          return;
+        }
+
+        const hours = Math.floor(timeLeft / (1000 * 60 * 60));
+        const minutes = Math.floor((timeLeft % (1000 * 60 * 60)) / (1000 * 60));
+        const seconds = Math.floor((timeLeft % (1000 * 60)) / 1000);
+
+        box.innerHTML =
+          "Nächstes Training in:<br>" +
+          hours + " Std. " +
+          minutes + " Min. " +
+          seconds + " Sek.";
+
+        startButton.disabled = true;
+      }
+
+      update();
+      countdownInterval = setInterval(update, 1000);
+    }
+
+    function startWorkout() {
+      currentExercise = 0;
+      showExercise();
+    }
+
+    function getExerciseAmount(exercise) {
+      const ageFactor = userData.age <= 12 ? 0.8 : userData.age >= 16 ? 1.2 : 1;
+      const levelFactor = 1 + (userData.level - 1) * 0.2;
+
+      if (exercise.type === "timer") {
+        return Math.round(exercise.baseTime * ageFactor * levelFactor);
+      } else {
+        return Math.round(exercise.baseReps * ageFactor * levelFactor);
+      }
+    }
+
+    function showExercise() {
+      hideAll();
+      document.getElementById("exerciseScreen").classList.remove("hidden");
+
+      const exercise = exercises[currentExercise];
+      const amount = getExerciseAmount(exercise);
+
+      document.getElementById("exerciseNumber").textContent =
+        "Übung " + (currentExercise + 1) + " von " + exercises.length;
+      document.getElementById("exerciseName").textContent = exercise.name;
+      document.getElementById("exerciseTip").textContent = exercise.tip;
+
+      if (exercise.type === "timer") {
+        document.getElementById("exerciseGoal").textContent = "Halte " + amount + " Sekunden";
+        document.getElementById("timerBox").classList.remove("hidden");
+        document.getElementById("repsBox").classList.add("hidden");
+        document.getElementById("timer").textContent = amount;
+        document.getElementById("timerButton").textContent = "Timer starten";
+        document.getElementById("timerButton").disabled = false;
+      } else {
+        document.getElementById("exerciseGoal").textContent = "Mach " + amount + " Wiederholungen";
+        document.getElementById("timerBox").classList.add("hidden");
+        document.getElementById("repsBox").classList.remove("hidden");
+      }
+    }
+
+    function startTimer() {
+      const exercise = exercises[currentExercise];
+      let timeLeft = getExerciseAmount(exercise);
+
+      document.getElementById("timerButton").disabled = true;
+      document.getElementById("timer").textContent = timeLeft;
+
+      timerInterval = setInterval(() => {
+        timeLeft--;
+        document.getElementById("timer").textContent = timeLeft;
+
+        if (timeLeft <= 0) {
+          clearInterval(timerInterval);
+          document.getElementById("timer").textContent = "Fertig!";
+          setTimeout(nextExercise, 1000);
+        }
+      }, 1000);
+    }
+
+    function nextExercise() {
+      currentExercise++;
+
+      if (currentExercise < exercises.length) {
+        showExercise();
+      } else {
+        hideAll();
+        document.getElementById("feedbackScreen").classList.remove("hidden");
+      }
+    }
+
+    function saveFeedback(change) {
+      userData.workouts++;
+      userData.level = Math.min(5, Math.max(1, userData.level + change));
+
+      userData.history.push({
+        date: new Date().toLocaleDateString("de-DE"),
+        feedback: change,
+        level: userData.level
+      });
+
+      const nextWorkoutTime = Date.now() + 48 * 60 * 60 * 1000;
+      userData.nextWorkout = nextWorkoutTime;
+
+      saveData();
+
+      let text = "Dein Leistungsniveau bleibt gleich.";
+      if (change === 1) text = "Stark! Dein Leistungsniveau wurde erhöht.";
+      if (change === -1) text = "Kein Problem. Dein Leistungsniveau wurde etwas gesenkt.";
+
+      document.getElementById("levelChangeText").textContent = text;
+
+      const nextDate = new Date(nextWorkoutTime);
+      document.getElementById("nextWorkoutText").textContent =
+        "Dein nächstes Training ist am " +
+        nextDate.toLocaleDateString("de-DE") +
+        " um " +
+        nextDate.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" }) +
+        " Uhr.";
+
+      hideAll();
+      document.getElementById("finishScreen").classList.remove("hidden");
+    }
+
+    function hideAll() {
+      document.getElementById("setupScreen").classList.add("hidden");
+      document.getElementById("homeScreen").classList.add("hidden");
+      document.getElementById("exerciseScreen").classList.add("hidden");
+      document.getElementById("feedbackScreen").classList.add("hidden");
+      document.getElementById("finishScreen").classList.add("hidden");
+    }
+
+    if (userData) {
+      showHome();
+    } else {
+      hideAll();
+      document.getElementById("setupScreen").classList.remove("hidden");
+    }
+  </script>
+</body>
+  </html>
