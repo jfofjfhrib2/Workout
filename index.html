@@ -1,0 +1,1163 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#101625">
+<title>Mein Workout</title>
+
+<style>
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 18px 14px 40px;
+  background: #101625;
+  color: #f4f7ff;
+  font-family: Arial, sans-serif;
+}
+
+main {
+  max-width: 550px;
+  margin: auto;
+}
+
+h1 {
+  color: #65e5c3;
+}
+
+h2 {
+  margin-top: 0;
+}
+
+.card {
+  margin: 18px 0;
+  padding: 22px;
+  border: 1px solid #35415c;
+  border-radius: 18px;
+  background: #1b2438;
+}
+
+.hidden {
+  display: none !important;
+}
+
+label {
+  display: block;
+  margin: 15px 0 7px;
+}
+
+input,
+button {
+  width: 100%;
+  padding: 14px;
+  border-radius: 12px;
+  font: inherit;
+}
+
+input {
+  background: #101625;
+  color: white;
+  border: 1px solid #65718a;
+}
+
+button {
+  margin-top: 12px;
+  border: none;
+  background: #65e5c3;
+  color: #10251e;
+  font-weight: bold;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.secondary {
+  background: #354560;
+  color: white;
+}
+
+.danger {
+  background: #803b50;
+  color: white;
+}
+
+p,
+li {
+  line-height: 1.6;
+}
+
+.muted {
+  color: #bdc8de;
+  font-size: 14px;
+}
+
+.clock {
+  text-align: center;
+  font-size: 64px;
+  font-weight: bold;
+  margin: 22px 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.countdown {
+  padding: 18px;
+  margin: 18px 0;
+  border-radius: 12px;
+  background: #101625;
+  text-align: center;
+  font-size: 21px;
+  font-variant-numeric: tabular-nums;
+}
+
+.row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.row button {
+  flex: 1;
+  min-width: 100px;
+}
+
+#status {
+  color: #ffe09a;
+  white-space: pre-wrap;
+}
+
+progress {
+  width: 100%;
+  accent-color: #65e5c3;
+}
+</style>
+
+<!-- Kleiner, unabhängiger Fehlerwächter. -->
+<script>
+window.workoutReady = false;
+
+window.workoutMessage = function (text) {
+  var element = document.getElementById("status");
+
+  if (element) {
+    element.textContent = text;
+  }
+};
+
+window.addEventListener("error", function (event) {
+  window.workoutMessage(
+    "JavaScript-Fehler: " + event.message +
+    (event.lineno ? " – Zeile " + event.lineno : "")
+  );
+});
+</script>
+</head>
+
+<body>
+<main>
+  <h1>💪 Mein Workout</h1>
+
+  <p id="status" role="status" aria-live="polite">
+    Version 4 · Profil eingeben und öffnen.
+  </p>
+
+  <noscript>
+    <div class="card">
+      JavaScript ist ausgeschaltet.
+      Bitte aktiviere es für diese Seite.
+    </div>
+  </noscript>
+
+  <section id="profileScreen" class="card">
+    <h2>Dein Profil</h2>
+
+    <!-- Kein Formular und kein deaktivierter Profil-Button. -->
+    <label for="ageInput">Dein Alter</label>
+    <input
+      id="ageInput"
+      type="number"
+      min="1"
+      max="120"
+      step="1"
+      inputmode="numeric"
+      required
+    >
+
+    <label for="weightInput">Gewicht in kg – freiwillig</label>
+    <input
+      id="weightInput"
+      type="number"
+      min="1"
+      max="500"
+      step="0.1"
+      inputmode="decimal"
+    >
+
+    <p class="muted">
+      Gewicht und Alter bestimmen hier nicht deine Leistung.
+      Es gibt keine Abnehm- oder Kalorienziele.
+    </p>
+
+    <button
+      id="saveProfileButton"
+      type="button"
+      onclick="
+        if (window.workoutReady &&
+            typeof window.openWorkoutProfile === 'function') {
+          window.openWorkoutProfile();
+        } else {
+          alert(
+            'Der Trainingscode läuft nicht. ' +
+            'Prüfe die gelbe Meldung oben. ' +
+            'Möglicherweise fehlt ein Teil der index.html.'
+          );
+        }
+      "
+    >
+      Profil speichern und öffnen
+    </button>
+
+    <p class="muted">
+      Die Angaben werden lokal in diesem Browser gespeichert.
+      Wenn der Browser das blockiert, kannst du trotzdem
+      weitergehen, aber die Daten bleiben dann nicht dauerhaft.
+    </p>
+  </section>
+
+  <section id="homeScreen" class="card hidden">
+    <h2>Deine Übersicht</h2>
+
+    <p id="profileInfo"></p>
+    <p id="trainingCount"></p>
+
+    <div id="countdown" class="countdown"></div>
+    <p id="nextDate" class="muted"></p>
+
+    <button id="startButton" type="button">
+      Training starten
+    </button>
+
+    <button id="calendarButton" class="secondary" type="button">
+      📅 Kalender-Erinnerung herunterladen
+    </button>
+
+    <p class="muted">
+      Importiere die Kalenderdatei in deine Kalender-App.
+      Sie enthält eine Erinnerung 15 Minuten vor dem Termin.
+      Prüfe die Erinnerung dort. Diese Webseite selbst sendet
+      bei geschlossenem Browser keine Nachricht.
+    </p>
+
+    <button id="editButton" class="secondary" type="button">
+      Profil bearbeiten
+    </button>
+
+    <details>
+      <summary>Letzte Trainings ansehen</summary>
+      <ul id="historyList"></ul>
+    </details>
+
+    <button id="deleteButton" class="danger" type="button">
+      Alle Daten löschen
+    </button>
+  </section>
+
+  <section id="exerciseScreen" class="card hidden">
+    <p id="exercisePosition" class="muted"></p>
+
+    <progress id="progress" max="4" value="0"></progress>
+
+    <h2 id="exerciseTitle"></h2>
+    <p id="exerciseGoal"></p>
+    <p id="exerciseInstructions"></p>
+
+    <div id="exerciseClock" class="clock">00:00</div>
+    <p id="clockInfo" class="muted"></p>
+
+    <div id="exerciseControls">
+      <button id="timerStartButton" type="button">
+        Timer starten
+      </button>
+
+      <button
+        id="timerPauseButton"
+        class="secondary hidden"
+        type="button"
+      >
+        Pausieren
+      </button>
+
+      <button
+        id="exerciseDoneButton"
+        class="secondary hidden"
+        type="button"
+      >
+        Übung beenden
+      </button>
+    </div>
+
+    <div id="feedbackBox" class="hidden">
+      <p>Wie hat sich diese Übung angefühlt?</p>
+
+      <div class="row">
+        <button id="easyButton" type="button">Leicht</button>
+        <button id="okayButton" type="button">Passend</button>
+        <button id="hardButton" type="button">Zu schwer</button>
+      </div>
+
+      <p class="muted">
+        Die Dauer wird gespeichert, aber schneller bedeutet
+        nicht automatisch besser.
+      </p>
+    </div>
+
+    <p id="wakeInfo" class="muted"></p>
+
+    <button id="stopButton" class="danger" type="button">
+      Training abbrechen
+    </button>
+  </section>
+
+  <section id="restScreen" class="card hidden">
+    <h2>Pause</h2>
+
+    <div id="restClock" class="clock">00:45</div>
+
+    <p>
+      Du kannst länger pausieren.
+      Die nächste Übung startet erst mit „Weiter“.
+    </p>
+
+    <button id="continueButton" type="button">
+      Weiter
+    </button>
+
+    <button id="stopRestButton" class="danger" type="button">
+      Training abbrechen
+    </button>
+  </section>
+
+  <section id="finishScreen" class="card hidden">
+    <h2>🎉 Training abgeschlossen!</h2>
+
+    <p id="finishInfo"></p>
+    <p id="adjustmentInfo"></p>
+
+    <button id="homeButton" type="button">
+      Zur Übersicht
+    </button>
+  </section>
+
+  <p class="muted">
+    Die Übungsstufen sind einfache App-Einstellungen,
+    kein medizinischer Fitnesstest. Ein vorgeschlagener
+    Termin ist keine Pflicht. Bei Schmerzen, Schwindel
+    oder Unwohlsein abbrechen und einer erwachsenen
+    Vertrauensperson Bescheid sagen.
+  </p>
+</main>
+
+<script>
+(function () {
+  "use strict";
+
+  var KEY = "workout_fixed_v3";
+
+  var profile = null;
+  var storageWarning = "";
+
+  var active = false;
+  var current = 0;
+  var sessionLevels = [];
+  var results = [];
+
+  var timerInterval = null;
+  var restInterval = null;
+
+  var running = false;
+  var segmentStart = 0;
+  var elapsedMs = 0;
+  var targetMs = 0;
+  var waitingForFeedback = false;
+
+  var wakeLock = null;
+  var wakePending = false;
+
+  var screens = [
+    "profileScreen",
+    "homeScreen",
+    "exerciseScreen",
+    "restScreen",
+    "finishScreen"
+  ];
+
+  var exercises = [
+    {
+      name: "Plank",
+      type: "seconds",
+      amounts: [10, 15, 20, 25, 30],
+      instructions:
+        "Stütze dich auf die Unterarme. Halte den Körper " +
+        "möglichst gerade und atme weiter. Beende die Übung " +
+        "früher, wenn du die Haltung nicht kontrollieren kannst."
+    },
+    {
+      name: "Crunches",
+      type: "reps",
+      amounts: [5, 6, 8, 10, 12],
+      instructions:
+        "Auf den Rücken legen, Knie beugen und Füße aufstellen. " +
+        "Arme vor der Brust kreuzen. Die Schultern langsam " +
+        "ein kleines Stück anheben und kontrolliert absenken. " +
+        "Nicht am Kopf ziehen und nicht mit Schwung arbeiten."
+    },
+    {
+      name: "Beinheben mit gebeugten Knien",
+      type: "reps",
+      amounts: [4, 5, 6, 8, 10],
+      instructions:
+        "Auf den Rücken legen und Knie beugen. Die Beine " +
+        "langsam nur so weit anheben und senken, wie du die " +
+        "Bewegung kontrollieren kannst. Bei Schmerzen oder " +
+        "starkem Hohlkreuz beenden."
+    },
+    {
+      name: "Russian Twists ohne Gewicht",
+      type: "reps",
+      amounts: [6, 8, 10, 12, 14],
+      instructions:
+        "Hinsetzen, Knie beugen und Füße auf dem Boden lassen. " +
+        "Nur leicht zurücklehnen. Langsam ein kleines Stück " +
+        "nach links und rechts drehen. Jede Seite zählt einmal."
+    }
+  ];
+
+  function get(id) {
+    return document.getElementById(id);
+  }
+
+  function report(text) {
+    window.workoutMessage(text);
+  }
+
+  function hide(id, shouldHide) {
+    if (shouldHide) {
+      get(id).classList.add("hidden");
+    } else {
+      get(id).classList.remove("hidden");
+    }
+  }
+
+  function showScreen(id) {
+    screens.forEach(function (screen) {
+      hide(screen, screen !== id);
+    });
+  }
+
+  function bind(id, action) {
+    get(id).addEventListener("click", function () {
+      try {
+        action();
+      } catch (error) {
+        report("Fehler: " + error.message);
+      }
+    });
+  }
+
+  function isFiniteNumber(value) {
+    return typeof value === "number" && isFinite(value);
+  }
+
+  function isInteger(value) {
+    return isFiniteNumber(value) && Math.floor(value) === value;
+  }
+
+  function validProfile(value) {
+    if (!value || value.version !== 3) return false;
+
+    if (!isInteger(value.age) ||
+        value.age < 1 ||
+        value.age > 120) return false;
+
+    if (value.weight !== null &&
+        (!isFiniteNumber(value.weight) ||
+         value.weight <= 0)) return false;
+
+    if (!Array.isArray(value.levels) ||
+        value.levels.length !== 4) return false;
+
+    if (!value.levels.every(function (level) {
+      return isInteger(level) && level >= 0 && level <= 4;
+    })) return false;
+
+    if (!Array.isArray(value.easyCounts) ||
+        value.easyCounts.length !== 4) return false;
+
+    if (!value.easyCounts.every(function (count) {
+      return isInteger(count) && count >= 0;
+    })) return false;
+
+    if (!Array.isArray(value.history)) return false;
+
+    if (!value.history.every(function (entry) {
+      return entry &&
+        isFiniteNumber(entry.date) &&
+        Array.isArray(entry.results) &&
+        entry.results.every(function (result) {
+          return result &&
+            typeof result.name === "string" &&
+            isFiniteNumber(result.amount) &&
+            isFiniteNumber(result.durationSeconds);
+        });
+    })) return false;
+
+    return isFiniteNumber(value.nextWorkout);
+  }
+
+  function loadData() {
+    try {
+      var raw = localStorage.getItem(KEY);
+
+      if (!raw) return;
+
+      var saved = JSON.parse(raw);
+
+      if (validProfile(saved)) {
+        profile = saved;
+      } else {
+        storageWarning =
+          "Gespeicherte Daten sind nicht lesbar. " +
+          "Bitte Profil neu anlegen.";
+      }
+    } catch (error) {
+      storageWarning =
+        "Browser-Speicher nicht verfügbar. " +
+        "Du kannst die App trotzdem verwenden.";
+    }
+  }
+
+  function saveData() {
+    try {
+      localStorage.setItem(KEY, JSON.stringify(profile));
+      storageWarning = "";
+      return true;
+    } catch (error) {
+      storageWarning =
+        "Dauerhaftes Speichern ist blockiert. " +
+        "Deine Daten bleiben nur in dieser geöffneten Seite.";
+      report(storageWarning);
+      return false;
+    }
+  }
+
+  function dateText(timestamp) {
+    return new Date(timestamp).toLocaleString("de-DE");
+  }
+
+  function twoDigits(number) {
+    return number < 10 ? "0" + number : String(number);
+  }
+
+  function clockText(milliseconds) {
+    var seconds = Math.max(0, Math.ceil(milliseconds / 1000));
+
+    return twoDigits(Math.floor(seconds / 60)) +
+      ":" + twoDigits(seconds % 60);
+  }
+
+  function inputIsValid(input) {
+    if (typeof input.reportValidity === "function") {
+      return input.reportValidity();
+    }
+
+    return input.checkValidity();
+  }
+
+  window.openWorkoutProfile = function () {
+    try {
+      var ageInput = get("ageInput");
+      var weightInput = get("weightInput");
+
+      if (!inputIsValid(ageInput)) return;
+      if (!inputIsValid(weightInput)) return;
+
+      var age = Number(ageInput.value);
+      var weight = weightInput.value === ""
+        ? null
+        : Number(weightInput.value);
+
+      if (!isInteger(age) || age < 1 || age > 120) {
+        report("Bitte gib ein gültiges Alter ein.");
+        return;
+      }
+
+      if (weight !== null &&
+          (!isFiniteNumber(weight) || weight <= 0)) {
+        report("Bitte gib ein gültiges Gewicht ein oder lasse es leer.");
+        return;
+      }
+
+      if (!profile) {
+        profile = {
+          version: 3,
+          age: age,
+          weight: weight,
+          levels: [0, 0, 0, 0],
+          easyCounts: [0, 0, 0, 0],
+          history: [],
+          nextWorkout: 0
+        };
+      } else {
+        profile.age = age;
+        profile.weight = weight;
+      }
+
+      var saved = saveData();
+
+      showHome();
+
+      report(saved
+        ? "Profil gespeichert. Übersicht geöffnet."
+        : storageWarning);
+
+    } catch (error) {
+      report("Profil konnte nicht geöffnet werden: " + error.message);
+      alert("Fehler beim Öffnen: " + error.message);
+    }
+  };
+
+  function showHome() {
+    showScreen("homeScreen");
+
+    get("profileInfo").textContent =
+      "Alter: " + profile.age + " Jahre" +
+      (profile.weight === null
+        ? ""
+        : " · Gewicht: " + profile.weight + " kg");
+
+    get("trainingCount").textContent =
+      "Abgeschlossene Trainings: " + profile.history.length;
+
+    var list = get("historyList");
+    list.textContent = "";
+
+    if (!profile.history.length) {
+      var empty = document.createElement("li");
+      empty.textContent = "Noch kein Training abgeschlossen.";
+      list.appendChild(empty);
+    } else {
+      profile.history.slice(-10).reverse().forEach(function (entry) {
+        var item = document.createElement("li");
+
+        item.textContent = dateText(entry.date) + " – " +
+          entry.results.map(function (result) {
+            return result.name + ": " +
+              result.amount +
+              (result.type === "seconds" ? " Sek." : " Wdh.") +
+              " · " + result.durationSeconds + " Sek. gemessen";
+          }).join(" / ");
+
+        list.appendChild(item);
+      });
+    }
+
+    updateCountdown();
+  }
+
+  function updateCountdown() {
+    if (!profile) return;
+
+    var left = profile.nextWorkout - Date.now();
+
+    get("startButton").disabled = active || left > 0;
+    get("calendarButton").disabled = !profile.nextWorkout;
+
+    if (!profile.nextWorkout) {
+      get("countdown").textContent =
+        "Bereit für dein erstes Training";
+      get("nextDate").textContent = "";
+      return;
+    }
+
+    get("nextDate").textContent =
+      "Vorgeschlagener Termin: " + dateText(profile.nextWorkout);
+
+    if (left <= 0) {
+      get("countdown").textContent =
+        "Dein vorgeschlagener Termin ist erreicht.";
+      return;
+    }
+
+    var total = Math.ceil(left / 1000);
+    var days = Math.floor(total / 86400);
+    var hours = Math.floor((total % 86400) / 3600);
+    var minutes = Math.floor((total % 3600) / 60);
+    var seconds = total % 60;
+
+    get("countdown").textContent =
+      (days ? days + " T. " : "") +
+      hours + " Std. " +
+      minutes + " Min. " +
+      seconds + " Sek.";
+  }
+
+  function keepScreenOn() {
+    if (!active ||
+        wakePending ||
+        document.visibilityState !== "visible" ||
+        (wakeLock && !wakeLock.released)) return;
+
+    if (!navigator.wakeLock ||
+        typeof navigator.wakeLock.request !== "function") {
+      get("wakeInfo").textContent =
+        "Bildschirm-Wachhalten wird hier nicht unterstützt.";
+      return;
+    }
+
+    wakePending = true;
+
+    try {
+      navigator.wakeLock.request("screen").then(function (lock) {
+        wakePending = false;
+
+        if (!active) {
+          lock.release().catch(function () {});
+          return;
+        }
+
+        wakeLock = lock;
+        get("wakeInfo").textContent =
+          "Bildschirm-Wachhalten aktiv.";
+
+        lock.addEventListener("release", function () {
+          if (wakeLock === lock) {
+            wakeLock = null;
+            get("wakeInfo").textContent =
+              "Das Gerät hat Bildschirm-Wachhalten beendet.";
+          }
+        });
+
+      }).catch(function () {
+        wakePending = false;
+        get("wakeInfo").textContent =
+          "Bildschirm konnte nicht wach gehalten werden.";
+      });
+
+    } catch (error) {
+      wakePending = false;
+      get("wakeInfo").textContent =
+        "Bildschirm konnte nicht wach gehalten werden.";
+    }
+  }
+
+  function releaseScreen() {
+    var lock = wakeLock;
+    wakeLock = null;
+
+    if (lock && !lock.released) {
+      lock.release().catch(function () {});
+    }
+  }
+
+  function clearTimers() {
+    clearInterval(timerInterval);
+    clearInterval(restInterval);
+    timerInterval = null;
+    restInterval = null;
+  }
+
+  function startWorkout() {
+    if (!profile ||
+        active ||
+        profile.nextWorkout > Date.now()) return;
+
+    active = true;
+    current = 0;
+    results = [];
+    sessionLevels = profile.levels.slice();
+
+    report(storageWarning);
+    keepScreenOn();
+    showExercise();
+  }
+
+  function showExercise() {
+    clearTimers();
+    showScreen("exerciseScreen");
+
+    var exercise = exercises[current];
+    var amount = exercise.amounts[sessionLevels[current]];
+
+    elapsedMs = 0;
+    running = false;
+    waitingForFeedback = false;
+    targetMs = exercise.type === "seconds" ? amount * 1000 : 0;
+
+    get("exercisePosition").textContent =
+      "Übung " + (current + 1) + " von 4 · App-Stufe " +
+      (sessionLevels[current] + 1);
+
+    get("progress").value = current;
+    get("exerciseTitle").textContent = exercise.name;
+    get("exerciseInstructions").textContent = exercise.instructions;
+
+    get("exerciseGoal").textContent =
+      exercise.type === "seconds"
+        ? "Vorschlag: bis zu " + amount + " Sekunden."
+        : "Vorschlag: " + amount + " langsame Wiederholungen.";
+
+    get("clockInfo").textContent =
+      exercise.type === "seconds"
+        ? "Countdown. Du darfst früher aufhören."
+        : "Stoppuhr. Es gibt kein Geschwindigkeitsziel.";
+
+    get("exerciseClock").textContent = clockText(targetMs);
+
+    hide("exerciseControls", false);
+    hide("feedbackBox", true);
+    hide("timerStartButton", false);
+    hide("timerPauseButton", true);
+    hide("exerciseDoneButton", true);
+
+    get("timerStartButton").textContent = "Timer starten";
+  }
+
+  function elapsedNow() {
+    return elapsedMs +
+      (running ? Date.now() - segmentStart : 0);
+  }
+
+  function refreshClock() {
+    var elapsed = elapsedNow();
+
+    if (exercises[current].type === "seconds") {
+      get("exerciseClock").textContent =
+        clockText(Math.max(0, targetMs - elapsed));
+
+      if (running && elapsed >= targetMs) {
+        finishExercise();
+      }
+    } else {
+      get("exerciseClock").textContent = clockText(elapsed);
+    }
+  }
+
+  function startTimer() {
+    if (running || waitingForFeedback) return;
+
+    segmentStart = Date.now();
+    running = true;
+
+    hide("timerStartButton", true);
+    hide("timerPauseButton", false);
+    hide("exerciseDoneButton", false);
+
+    timerInterval = setInterval(refreshClock, 150);
+    refreshClock();
+  }
+
+  function pauseTimer() {
+    if (!running) return;
+
+    elapsedMs = elapsedNow();
+    running = false;
+    clearInterval(timerInterval);
+
+    hide("timerStartButton", false);
+    hide("timerPauseButton", true);
+
+    get("timerStartButton").textContent = "Fortsetzen";
+    refreshClock();
+  }
+
+  function finishExercise() {
+    if (waitingForFeedback) return;
+
+    elapsedMs = elapsedNow();
+    running = false;
+    waitingForFeedback = true;
+
+    clearInterval(timerInterval);
+
+    if (exercises[current].type === "seconds") {
+      elapsedMs = Math.min(elapsedMs, targetMs);
+    }
+
+    get("exerciseClock").textContent = "Fertig";
+    hide("exerciseControls", true);
+    hide("feedbackBox", false);
+  }
+
+  function rateExercise(rating) {
+    if (!waitingForFeedback) return;
+
+    waitingForFeedback = false;
+    hide("feedbackBox", true);
+
+    var exercise = exercises[current];
+
+    results.push({
+      name: exercise.name,
+      type: exercise.type,
+      amount: exercise.amounts[sessionLevels[current]],
+      durationSeconds: Math.round(elapsedMs / 1000),
+      rating: rating
+    });
+
+    current++;
+
+    if (current === exercises.length) {
+      finishWorkout();
+    } else {
+      showRest();
+    }
+  }
+
+  function showRest() {
+    showScreen("restScreen");
+
+    var end = Date.now() + 45000;
+
+    function update() {
+      var left = Math.max(0, end - Date.now());
+      get("restClock").textContent = clockText(left);
+
+      if (left === 0) {
+        clearInterval(restInterval);
+      }
+    }
+
+    update();
+    restInterval = setInterval(update, 250);
+  }
+
+  function finishWorkout() {
+    clearTimers();
+    active = false;
+    releaseScreen();
+
+    var changes = [];
+
+    results.forEach(function (result, index) {
+      if (result.rating === "hard") {
+        profile.levels[index] =
+          Math.max(0, profile.levels[index] - 1);
+
+        profile.easyCounts[index] = 0;
+
+        changes.push(
+          result.name + ": leichter oder auf Einstiegsstufe"
+        );
+
+      } else if (result.rating === "easy") {
+        profile.easyCounts[index]++;
+
+        if (profile.easyCounts[index] >= 2) {
+          var previous = profile.levels[index];
+
+          profile.levels[index] = Math.min(4, previous + 1);
+          profile.easyCounts[index] = 0;
+
+          if (profile.levels[index] > previous) {
+            changes.push(
+              result.name + ": Vorschlag leicht erhöht"
+            );
+          }
+        }
+
+      } else {
+        profile.easyCounts[index] = 0;
+      }
+    });
+
+    profile.history.push({
+      date: Date.now(),
+      results: results.slice()
+    });
+
+    profile.nextWorkout =
+      Date.now() + 48 * 60 * 60 * 1000;
+
+    var saved = saveData();
+
+    get("finishInfo").textContent =
+      (saved
+        ? "Training gespeichert. "
+        : "Speicherung fehlgeschlagen. ") +
+      "Nächster vorgeschlagener Termin: " +
+      dateText(profile.nextWorkout);
+
+    get("adjustmentInfo").textContent =
+      changes.length
+        ? changes.join(". ") + "."
+        : "Die Stufen bleiben gleich. Zwei aufeinanderfolgende " +
+          "Leicht-Bewertungen je Übung können den Vorschlag " +
+          "eine kleine Stufe erhöhen.";
+
+    showScreen("finishScreen");
+  }
+
+  function stopWorkout() {
+    if (!confirm(
+      "Training abbrechen? Es wird nicht gespeichert."
+    )) return;
+
+    clearTimers();
+
+    active = false;
+    running = false;
+    waitingForFeedback = false;
+
+    releaseScreen();
+    showHome();
+  }
+
+  function calendarTime(timestamp) {
+    return new Date(timestamp).toISOString()
+      .replace(/[-:]/g, "")
+      .replace(/.d{3}Z$/, "Z");
+  }
+
+  function downloadCalendar() {
+    if (!profile || !profile.nextWorkout) return;
+
+    if (profile.nextWorkout <= Date.now()) {
+      report("Dieser Termin liegt bereits in der Vergangenheit.");
+      return;
+    }
+
+    var start = profile.nextWorkout;
+
+    var lines = [
+      "BEGIN:VCALENDAR",
+      "VERSION:2.0",
+      "PRODID:-//MeinWorkout//DE",
+      "CALSCALE:GREGORIAN",
+      "BEGIN:VEVENT",
+      "UID:workout-" + start + "@meinworkout.local",
+      "DTSTAMP:" + calendarTime(Date.now()),
+      "DTSTART:" + calendarTime(start),
+      "DTEND:" + calendarTime(start + 15 * 60 * 1000),
+      "SUMMARY:Mein freiwilliges Workout",
+      "DESCRIPTION:Nur trainieren wenn du dich wohl und bereit fuehlst.",
+      "BEGIN:VALARM",
+      "TRIGGER:-PT15M",
+      "ACTION:DISPLAY",
+      "DESCRIPTION:Dein vorgeschlagener Workout-Termin",
+      "END:VALARM",
+      "END:VEVENT",
+      "END:VCALENDAR",
+      ""
+    ];
+
+    var blob = new Blob([lines.join("
+")], {
+      type: "text/calendar;charset=utf-8"
+    });
+
+    var url = URL.createObjectURL(blob);
+    var link = document.createElement("a");
+
+    link.href = url;
+    link.download = "workout-erinnerung.ics";
+
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    setTimeout(function () {
+      URL.revokeObjectURL(url);
+    }, 10000);
+  }
+
+  try {
+    bind("startButton", startWorkout);
+    bind("timerStartButton", startTimer);
+    bind("timerPauseButton", pauseTimer);
+    bind("exerciseDoneButton", finishExercise);
+
+    bind("easyButton", function () {
+      rateExercise("easy");
+    });
+
+    bind("okayButton", function () {
+      rateExercise("okay");
+    });
+
+    bind("hardButton", function () {
+      rateExercise("hard");
+    });
+
+    bind("continueButton", showExercise);
+    bind("stopButton", stopWorkout);
+    bind("stopRestButton", stopWorkout);
+    bind("homeButton", showHome);
+    bind("calendarButton", downloadCalendar);
+
+    bind("editButton", function () {
+      get("ageInput").value = profile.age;
+      get("weightInput").value =
+        profile.weight === null ? "" : profile.weight;
+
+      showScreen("profileScreen");
+    });
+
+    bind("deleteButton", function () {
+      if (!confirm("Alle Daten dieser App löschen?")) return;
+
+      try {
+        localStorage.removeItem(KEY);
+      } catch (error) {
+        report("Löschen im Browser-Speicher fehlgeschlagen.");
+        return;
+      }
+
+      profile = null;
+      get("ageInput").value = "";
+      get("weightInput").value = "";
+
+      showScreen("profileScreen");
+      report("Daten gelöscht.");
+    });
+
+    document.addEventListener("visibilitychange", function () {
+      if (document.visibilityState === "hidden") {
+        if (running) pauseTimer();
+      } else {
+        updateCountdown();
+        if (active) keepScreenOn();
+      }
+    });
+
+    loadData();
+
+    if (profile) {
+      showHome();
+    } else {
+      showScreen("profileScreen");
+    }
+
+    window.workoutReady = true;
+
+    report(
+      storageWarning ||
+      "Version 4 · App bereit."
+    );
+
+    setInterval(updateCountdown, 1000);
+
+  } catch (error) {
+    report(
+      "Die App konnte nicht starten: " + error.message
+    );
+  }
+})();
+</script>
+</body>
+        </html>
